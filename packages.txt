@@ -5,3 +5,5 @@ libxext6
 libxrender1
 libgomp1
 libgles2
+libegl1
+libgbm1
