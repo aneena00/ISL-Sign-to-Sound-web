@@ -1,0 +1,9 @@
+streamlit
+streamlit-webrtc
+av
+opencv-python
+torch
+mediapipe
+numpy
+audio-recorder-streamlit
+SpeechRecognition
