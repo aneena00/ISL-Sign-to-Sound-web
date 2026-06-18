@@ -1,9 +1,28 @@
+"""
+Sign2Sound — Streamlit Web App
+================================
+Two-way ISL <-> Speech translator. Works locally AND once deployed publicly,
+because the camera is captured in the VISITOR's browser (via streamlit-webrtc)
+and speech is spoken by the VISITOR's browser (via the Web Speech API) —
+nothing depends on hardware attached to the server.
+
+Run with:
+    streamlit run streamlit_app.py
+
+Requires these files in the SAME folder:
+    model.py
+    mediapipe_extractor.py
+    calculate_emotion.py
+    hand_landmarker.task
+    isl_model.pth          (your trained weights)
+    reference_images/      (A.png, B.png, ... one image per letter)
+"""
+
 import os
 import io
 import json
 import time
 import threading
-import asyncio  # <-- ADDED FOR THREAD PATCH
 from datetime import datetime
 
 import av
@@ -16,13 +35,6 @@ from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfigurati
 
 from model import SignLSTM
 from mediapipe_extractor import MediaPipeFeatureExtractor
-
-# --- CRITICAL STREAMLIT CLOUD LIFECYCLE PATCH ---
-# This prevents asyncio from tearing down event loops while webrtc sockets are active
-try:
-    asyncio.get_running_loop()
-except RuntimeError:
-    asyncio.set_event_loop(asyncio.new_event_loop())
 
 try:
     from audio_recorder_streamlit import audio_recorder
@@ -43,10 +55,10 @@ except ImportError:
 # CONFIG
 # --------------------------------------------------------------------------
 MODEL_PATH = "isl_model.pth"
-REF_IMG_DIR = ""  
+REF_IMG_DIR = ""  # letter images live alongside app.py etc. at the repo root
 LABELS_FILE = "labels.json"
 DEFAULT_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-                   'N', 'O', 'P', 'Q', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']  
+                   'N', 'O', 'P', 'Q', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']  # no "R"
 
 SEQ_LEN = 30
 CONFIDENCE_THRESHOLD = 0.80
@@ -61,21 +73,31 @@ HAND_CONNECTIONS = [
     (13, 17), (0, 17), (17, 18), (18, 19), (19, 20),
 ]
 
-# HARDENED WEBRTC TRAVERSAL SHIELD
-# Bypasses the broken openrelay project with globally redundant Google and Twilio public endpoints
 RTC_CONFIGURATION = RTCConfiguration(
     {
         "iceServers": [
             {"urls": ["stun:stun.l.google.com:19302"]},
-            {"urls": ["stun:stun1.l.google.com:19302"]},
-            {"urls": ["stun:stun2.l.google.com:19302"]},
-            {"urls": ["stun:stun3.l.google.com:19302"]},
-            {"urls": ["stun:stun4.l.google.com:19302"]},
+            # STUN alone often isn't enough to get a WebRTC connection through
+            # on Streamlit Cloud's network. These are the Open Relay Project's
+            # free, public TURN servers (relays the video when a direct
+            # peer-to-peer connection can't be made) — fine for demos/personal
+            # use; if traffic grows or it gets unreliable, swap in your own
+            # TURN credentials (e.g. Twilio, metered.ca paid tier, coturn).
             {
-                "urls": ["turn:global.turn.twilio.com:3478?transport=udp", "turn:global.turn.twilio.com:443?transport=tcp"],
-                "username": "2b09be8b082fe286e969d67ba5b4c1ea5dfa04cdd444c12513ba6b2ca8859942",
-                "credential": "NzU1MmNmYmU2MzhhMmIzYjFmN2NiNzg5MDlhMTc0N2EwNDBhMTYwMzA4MDNkMDRjZjM0YmFmODdiZWY0OTVlYw==",
-            }
+                "urls": ["turn:openrelay.metered.ca:80"],
+                "username": "openrelayproject",
+                "credential": "openrelayproject",
+            },
+            {
+                "urls": ["turn:openrelay.metered.ca:443"],
+                "username": "openrelayproject",
+                "credential": "openrelayproject",
+            },
+            {
+                "urls": ["turn:openrelay.metered.ca:443?transport=tcp"],
+                "username": "openrelayproject",
+                "credential": "openrelayproject",
+            },
         ]
     }
 )
@@ -171,11 +193,11 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# SESSION STATE
+# SESSION STATE (main-thread, per-browser-tab state)
 # --------------------------------------------------------------------------
 defaults = {
     "received_text": "",
-    "chat_log": [],   
+    "chat_log": [],   # list of {"who": "you"/"friend", "text": ..., "time": ...}
     "last_audio_bytes": None,
 }
 for key, val in defaults.items():
@@ -183,7 +205,7 @@ for key, val in defaults.items():
         st.session_state[key] = val
 
 # --------------------------------------------------------------------------
-# CACHED, READ-ONLY RESOURCES
+# CACHED, READ-ONLY RESOURCES (safe to share across sessions)
 # --------------------------------------------------------------------------
 @st.cache_resource
 def load_labels():
@@ -209,7 +231,7 @@ MODEL = load_model(len(LABELS))
 
 
 # --------------------------------------------------------------------------
-# BROWSER-SIDE SPEECH
+# BROWSER-SIDE SPEECH (plays on whoever is viewing the page, local or remote)
 # --------------------------------------------------------------------------
 def speak_in_browser(text):
     safe = text.replace("\\", "\\\\").replace('"', '\\"')
@@ -227,12 +249,18 @@ def speak_in_browser(text):
 
 # --------------------------------------------------------------------------
 # PER-CONNECTION VIDEO PROCESSOR
+# Each browser tab/visitor gets its own instance (own hand extractor, own
+# emotion detector, own buffers) — important so concurrent users don't
+# interfere with each other's predictions.
 # --------------------------------------------------------------------------
 class SignProcessor(VideoProcessorBase):
     def __init__(self):
         self.lock = threading.Lock()
         self.extractor = MediaPipeFeatureExtractor()
 
+        # Mood detection is a nice-to-have — if its model can't be loaded
+        # (e.g. no internet to fetch face_landmarker.task), disable it
+        # quietly rather than taking the whole video stream down with it.
         self.emotion_detector = None
         if EmotionDetector is not None:
             try:
@@ -320,7 +348,7 @@ class SignProcessor(VideoProcessorBase):
 
 
 # --------------------------------------------------------------------------
-# UI RENDER
+# HEADER
 # --------------------------------------------------------------------------
 st.markdown("<div class='hero-title'>Sign2Sound</div>", unsafe_allow_html=True)
 st.markdown("<p class='hero-sub'>A live bridge between ISL signs and spoken word.</p>", unsafe_allow_html=True)
@@ -328,6 +356,9 @@ st.markdown("<div class='bridge-line'></div>", unsafe_allow_html=True)
 
 col_cam, col_reply = st.columns(2)
 
+# --------------------------------------------------------------------------
+# LEFT COLUMN — camera + your signs
+# --------------------------------------------------------------------------
 with col_cam:
     st.markdown("<div class='panel'>", unsafe_allow_html=True)
     st.markdown("##### Your Camera")
@@ -378,6 +409,9 @@ with col_cam:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+# --------------------------------------------------------------------------
+# RIGHT COLUMN — reply + now translating
+# --------------------------------------------------------------------------
 with col_reply:
     st.markdown("<div class='panel'>", unsafe_allow_html=True)
     st.markdown("##### Reply (Two-Way Channel)")
@@ -391,11 +425,17 @@ with col_reply:
         )
 
     st.markdown(
-        <p class='status-muted' style='margin:10px 0 4px;'>— or speak it —</p>,
+        "<p class='status-muted' style='margin:10px 0 4px;'>— or speak it —</p>",
         unsafe_allow_html=True,
     )
 
-    if audio_recorder is not None and sr is not None:
+    if audio_recorder is None or sr is None:
+        st.markdown(
+            "<p class='status-muted'>Voice reply needs audio-recorder-streamlit "
+            "and SpeechRecognition (see requirements.txt).</p>",
+            unsafe_allow_html=True,
+        )
+    else:
         audio_bytes = audio_recorder(
             text="Click, speak, click again",
             recording_color=MAGENTA,
@@ -410,9 +450,15 @@ with col_reply:
                     with sr.AudioFile(io.BytesIO(audio_bytes)) as source:
                         audio_data = recognizer.record(source)
                     heard = recognizer.recognize_google(audio_data)
+                except sr.UnknownValueError:
+                    heard = None
+                    st.warning("Didn't catch that clearly — try speaking closer to the mic.")
+                except sr.RequestError as e:
+                    heard = None
+                    st.warning(f"Speech recognition service error: {e}")
                 except Exception as e:
                     heard = None
-                    st.warning("Didn't catch that clearly — speak closer to the microphone.")
+                    st.warning(f"Could not process that recording: {e}")
 
             if heard:
                 st.session_state.received_text = heard
@@ -435,7 +481,7 @@ with col_reply:
                         break
                 with img_cols[i % len(img_cols)]:
                     if found:
-                        st.image(found, caption=letter, use_container_width=True)
+                        st.image(found, caption=letter, width="stretch")
                     else:
                         st.markdown(
                             f"<div class='panel' style='text-align:center;'>{letter}</div>",
@@ -469,7 +515,10 @@ else:
 st.markdown("</div>", unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# POLLING RENDERING ENGINE LOOP
+# LIVE POLLING LOOP — pulls status from the video processor and updates
+# the placeholders above. Interrupted automatically whenever a button is
+# clicked elsewhere on the page (Streamlit cancels this run and starts a
+# fresh one), which is what makes Start/Stop/Speak/Clear all work.
 # --------------------------------------------------------------------------
 if ctx.state.playing:
     while ctx.state.playing:
