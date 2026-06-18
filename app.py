@@ -55,7 +55,7 @@ except ImportError:
 # CONFIG
 # --------------------------------------------------------------------------
 MODEL_PATH = "isl_model.pth"
-REF_IMG_DIR = "reference_images"
+REF_IMG_DIR = ""  # letter images live alongside app.py etc. at the repo root
 LABELS_FILE = "labels.json"
 DEFAULT_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
                    'N', 'O', 'P', 'Q', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']  # no "R"
