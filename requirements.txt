@@ -1,7 +1,7 @@
 streamlit
 streamlit-webrtc
 av
-opencv-python
+opencv-python-headless
 torch
 mediapipe
 numpy
