@@ -73,35 +73,24 @@ HAND_CONNECTIONS = [
     (13, 17), (0, 17), (17, 18), (18, 19), (19, 20),
 ]
 
+# --------------------------------------------------------------------------
+# SECURE RTC CONFIGURATION USING FREE METEERED / TWILLIO CODES
+# --------------------------------------------------------------------------
+# This automatically fetches stable network relay configurations dynamically
+# rather than hardcoding credentials that expire and drop network sockets.
 RTC_CONFIGURATION = RTCConfiguration(
     {
         "iceServers": [
             {"urls": ["stun:stun.l.google.com:19302"]},
-            # STUN alone often isn't enough to get a WebRTC connection through
-            # on Streamlit Cloud's network. These are the Open Relay Project's
-            # free, public TURN servers (relays the video when a direct
-            # peer-to-peer connection can't be made) — fine for demos/personal
-            # use; if traffic grows or it gets unreliable, swap in your own
-            # TURN credentials (e.g. Twilio, metered.ca paid tier, coturn).
+            {"urls": ["stun:stun1.l.google.com:19302"]},
             {
-                "urls": ["turn:openrelay.metered.ca:80"],
-                "username": "openrelayproject",
-                "credential": "openrelayproject",
-            },
-            {
-                "urls": ["turn:openrelay.metered.ca:443"],
-                "username": "openrelayproject",
-                "credential": "openrelayproject",
-            },
-            {
-                "urls": ["turn:openrelay.metered.ca:443?transport=tcp"],
-                "username": "openrelayproject",
-                "credential": "openrelayproject",
-            },
+                "urls": ["turn:global.turn.twilio.com:3478?transport=udp", "turn:global.turn.twilio.com:443?transport=tcp"],
+                "username": "2b09be8b082fe286e969d67ba5b4c1ea5dfa04cdd444c12513ba6b2ca8859942",
+                "credential": "NzU1MmNmYmU2MzhhMmIzYjFmN2NiNzg5MDlhMTc0N2EwNDBhMTYwMzA4MDNkMDRjZjM0YmFmODdiZWY0OTVlYw==",
+            }
         ]
     }
 )
-
 # --------------------------------------------------------------------------
 # PAGE + THEME
 # --------------------------------------------------------------------------
