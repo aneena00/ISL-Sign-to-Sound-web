@@ -80,7 +80,7 @@ RTC_CONFIGURATION = RTCConfiguration(
 # --------------------------------------------------------------------------
 # PAGE + THEME
 # --------------------------------------------------------------------------
-st.set_page_config(page_title="Sign2Sound", layout="wide", page_icon="🤟")
+st.set_page_config(page_title="Sign2Sound-SignBridge", layout="wide", page_icon="🤟")
 
 INK = "#0B0E14"
 PANEL = "#141923"
