@@ -80,7 +80,7 @@ RTC_CONFIGURATION = RTCConfiguration(
 # --------------------------------------------------------------------------
 # PAGE + THEME
 # --------------------------------------------------------------------------
-st.set_page_config(page_title="Sign2Sound-SignBridge", layout="wide", page_icon="🤟")
+st.set_page_config(page_title="Sign2Sound", layout="wide", page_icon="🤟")
 
 INK = "#0B0E14"
 PANEL = "#141923"
@@ -353,10 +353,10 @@ with col_cam:
         mood_debug_placeholder = st.empty()
 
     bspeak, bspace, bback, bclear = st.columns(4)
-    speak_clicked = bspeak.button("Speak", use_container_width=True)
-    space_clicked = bspace.button("␣ Space", use_container_width=True)
-    back_clicked = bback.button("⌫ Back", use_container_width=True)
-    clear_clicked = bclear.button("Clear", use_container_width=True)
+    speak_clicked = bspeak.button("Speak", width="stretch")
+    space_clicked = bspace.button("␣ Space", width="stretch")
+    back_clicked = bback.button("⌫ Back", width="stretch")
+    clear_clicked = bclear.button("Clear", width="stretch")
 
     if ctx.video_processor:
         if speak_clicked:
@@ -456,7 +456,7 @@ with col_reply:
                         break
                 with img_cols[i % len(img_cols)]:
                     if found:
-                        st.image(found, caption=letter, use_container_width=True)
+                        st.image(found, caption=letter, width="stretch")
                     else:
                         st.markdown(
                             f"<div class='panel' style='text-align:center;'>{letter}</div>",
