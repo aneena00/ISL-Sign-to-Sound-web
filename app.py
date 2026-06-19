@@ -76,20 +76,12 @@ HAND_CONNECTIONS = [
 RTC_CONFIGURATION = RTCConfiguration(
     {
         "iceServers": [
-            {"urls": ["stun:stun.l.google.com:19302"]},
-            # STUN alone often isn't enough to get a WebRTC connection through
-            # on Streamlit Cloud's network. These are the Open Relay Project's
-            # free, public TURN servers (relays the video when a direct
-            # peer-to-peer connection can't be made) — fine for demos/personal
-            # use; if traffic grows or it gets unreliable, swap in your own
-            # TURN credentials (e.g. Twilio, metered.ca paid tier, coturn).
+            # Streamlit Community Cloud's network doesn't reliably support
+            # outbound UDP, which is what plain STUN/TURN normally use.
+            # TURN-over-TLS on port 443 looks like ordinary HTTPS traffic,
+            # so it gets through where UDP-based candidates can't.
             {
-                "urls": ["turn:openrelay.metered.ca:80"],
-                "username": "openrelayproject",
-                "credential": "openrelayproject",
-            },
-            {
-                "urls": ["turn:openrelay.metered.ca:443"],
+                "urls": ["turns:openrelay.metered.ca:443?transport=tcp"],
                 "username": "openrelayproject",
                 "credential": "openrelayproject",
             },
@@ -98,7 +90,11 @@ RTC_CONFIGURATION = RTCConfiguration(
                 "username": "openrelayproject",
                 "credential": "openrelayproject",
             },
-        ]
+        ],
+        # Skip host/STUN candidates entirely and force everything through
+        # the TURN relay above — those UDP-based candidates were likely
+        # just burning the connection's time budget before failing anyway.
+        "iceTransportPolicy": "relay",
     }
 )
 
