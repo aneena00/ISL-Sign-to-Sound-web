@@ -73,35 +73,43 @@ HAND_CONNECTIONS = [
     (13, 17), (0, 17), (17, 18), (18, 19), (19, 20),
 ]
 
-RTC_CONFIGURATION = RTCConfiguration(
-    {
-        "iceServers": [
-            # Streamlit Community Cloud's network doesn't reliably support
-            # outbound UDP, which is what plain STUN/TURN normally use.
-            # TURN-over-TLS on port 443 looks like ordinary HTTPS traffic,
-            # so it gets through where UDP-based candidates can't.
+@st.cache_resource(ttl=3000)  # refresh before Twilio's ~1hr token expiry
+def get_rtc_configuration():
+    """
+    Twilio's Network Traversal Service gives a private, reliable TURN
+    endpoint (vs. the free public Open Relay demo servers, which turned
+    out to be too unreliable to actually establish a connection). Falls
+    back to the old public servers if Twilio secrets aren't set yet, so
+    the app doesn't hard-crash — but expect that fallback to be flaky.
+    """
+    try:
+        from twilio.rest import Client
+        client = Client(st.secrets["TWILIO_ACCOUNT_SID"], st.secrets["TWILIO_AUTH_TOKEN"])
+        token = client.tokens.create()
+        return RTCConfiguration({"iceServers": token.ice_servers, "iceTransportPolicy": "relay"})
+    except Exception as e:
+        print(f"[Warning] Twilio ICE servers unavailable, falling back to public TURN: {e}")
+        return RTCConfiguration(
             {
-                "urls": ["turns:openrelay.metered.ca:443?transport=tcp"],
-                "username": "openrelayproject",
-                "credential": "openrelayproject",
-            },
-            {
-                "urls": ["turn:openrelay.metered.ca:443?transport=tcp"],
-                "username": "openrelayproject",
-                "credential": "openrelayproject",
-            },
-        ],
-        # Skip host/STUN candidates entirely and force everything through
-        # the TURN relay above — those UDP-based candidates were likely
-        # just burning the connection's time budget before failing anyway.
-        "iceTransportPolicy": "relay",
-    }
-)
+                "iceServers": [
+                    {
+                        "urls": ["turns:openrelay.metered.ca:443?transport=tcp"],
+                        "username": "openrelayproject",
+                        "credential": "openrelayproject",
+                    },
+                ],
+                "iceTransportPolicy": "relay",
+            }
+        )
+
+
+# (RTC_CONFIGURATION is assigned just below, after st.set_page_config())
 
 # --------------------------------------------------------------------------
 # PAGE + THEME
 # --------------------------------------------------------------------------
 st.set_page_config(page_title="Sign2Sound", layout="wide", page_icon="🤟")
+RTC_CONFIGURATION = get_rtc_configuration()
 
 INK = "#0B0E14"
 PANEL = "#141923"
