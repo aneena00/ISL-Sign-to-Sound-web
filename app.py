@@ -255,18 +255,18 @@ def speak_in_browser(text):
 # --------------------------------------------------------------------------
 class SignProcessor(VideoProcessorBase):
     def __init__(self):
+        # Keep this constructor as fast as possible — it runs WHILE the
+        # WebRTC connection is still being negotiated. Loading two
+        # MediaPipe models here was likely taking longer than the
+        # connection handshake/ICE candidates allow for on a slow shared
+        # cloud CPU, so the connection died right around when loading
+        # finished. Everything heavy is now deferred to _ensure_loaded(),
+        # called from recv() — by then the connection already succeeded,
+        # so a slow first frame or two is harmless instead of fatal.
         self.lock = threading.Lock()
-        self.extractor = MediaPipeFeatureExtractor()
-
-        # Mood detection is a nice-to-have — if its model can't be loaded
-        # (e.g. no internet to fetch face_landmarker.task), disable it
-        # quietly rather than taking the whole video stream down with it.
+        self.extractor = None
         self.emotion_detector = None
-        if EmotionDetector is not None:
-            try:
-                self.emotion_detector = EmotionDetector()
-            except Exception as e:
-                print(f"[Warning] Mood detection disabled — could not load face model: {e}")
+        self._models_loaded = False
 
         self.sequence = []
         self.stability_buffer = []
@@ -274,12 +274,27 @@ class SignProcessor(VideoProcessorBase):
         self.last_added_letter = ""
         self.last_addition_time = 0.0
 
-        self.sign_text = "Searching for hands..."
+        self.sign_text = "Loading models..."
         self.mood = "Neutral"
         self.mood_scores = {}
         self.frame_count = 0
 
+    def _ensure_loaded(self):
+        if self._models_loaded:
+            return
+        self.extractor = MediaPipeFeatureExtractor()
+        # Mood detection is a nice-to-have — if its model can't be loaded
+        # (e.g. no internet to fetch face_landmarker.task), disable it
+        # quietly rather than taking the whole video stream down with it.
+        if EmotionDetector is not None:
+            try:
+                self.emotion_detector = EmotionDetector()
+            except Exception as e:
+                print(f"[Warning] Mood detection disabled — could not load face model: {e}")
+        self._models_loaded = True
+
     def recv(self, frame):
+        self._ensure_loaded()
         img = frame.to_ndarray(format="bgr24")
         img = cv2.flip(img, 1)
         h, w = img.shape[:2]
