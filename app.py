@@ -277,19 +277,29 @@ class SignProcessor(VideoProcessorBase):
         self.sign_text = "Searching for hands..."
         self.mood = "Neutral"
         self.mood_scores = {}
+        self.frame_count = 0
 
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
         img = cv2.flip(img, 1)
         h, w = img.shape[:2]
+        self.frame_count += 1
 
-        mood_scores = {}
-        if self.emotion_detector is not None:
+        # Mood detection runs its own full face-mesh model — doing that on
+        # every single frame, on top of hand tracking + the LSTM, is more
+        # than a free cloud CPU can keep up with in real time, which is
+        # exactly what causes the connection to stall and get torn down a
+        # couple seconds in. Mood doesn't need to refresh that often, so
+        # only recompute it every 8th frame and reuse the last value
+        # otherwise.
+        mood = self.mood
+        mood_scores = self.mood_scores
+        if self.emotion_detector is not None and self.frame_count % 8 == 0:
             try:
                 mood, mood_scores = self.emotion_detector.calculate_with_scores(img)
             except Exception:
                 mood = "Neutral"
-        else:
+        elif self.emotion_detector is None:
             mood = "Unavailable"
 
         features = self.extractor.extract_features(img)
@@ -367,7 +377,7 @@ with col_cam:
         key="sign2sound",
         video_processor_factory=SignProcessor,
         rtc_configuration=RTC_CONFIGURATION,
-        media_stream_constraints={"video": {"width": {"ideal": 640}}, "audio": False},
+        media_stream_constraints={"video": {"width": {"ideal": 480}}, "audio": False},
         async_processing=True,
     )
 
