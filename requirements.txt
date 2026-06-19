@@ -7,3 +7,4 @@ mediapipe
 numpy
 audio-recorder-streamlit
 SpeechRecognition
+twilio
