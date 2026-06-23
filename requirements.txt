@@ -8,3 +8,4 @@ numpy
 audio-recorder-streamlit
 SpeechRecognition
 twilio
+streamlit-local-storage
