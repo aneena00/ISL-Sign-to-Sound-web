@@ -32,6 +32,7 @@ import torch
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+from streamlit_local_storage import LocalStorage
 
 from model import SignLSTM
 from mediapipe_extractor import MediaPipeFeatureExtractor
@@ -207,6 +208,32 @@ defaults = {
 for key, val in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = val
+
+# --------------------------------------------------------------------------
+# PERSISTENT CHAT HISTORY (saved in the VISITOR's own browser localStorage —
+# private to their device, no server-side database needed). Custom
+# components like this return their value asynchronously, so the saved
+# history may only become available a render or two after the page first
+# loads — that's expected, not a bug.
+# --------------------------------------------------------------------------
+local_storage = LocalStorage()
+CHAT_STORAGE_KEY = "sign2sound_chat_log"
+
+if not st.session_state.get("_chat_loaded_from_storage"):
+    try:
+        saved_chat = local_storage.getItem(CHAT_STORAGE_KEY)
+        if saved_chat:
+            st.session_state.chat_log = json.loads(saved_chat)
+    except Exception:
+        pass
+    st.session_state._chat_loaded_from_storage = True
+
+
+def save_chat_to_browser():
+    try:
+        local_storage.setItem(CHAT_STORAGE_KEY, json.dumps(st.session_state.chat_log))
+    except Exception:
+        pass
 
 # --------------------------------------------------------------------------
 # CACHED, READ-ONLY RESOURCES (safe to share across sessions)
@@ -423,6 +450,7 @@ with col_cam:
                 st.session_state.chat_log.append(
                     {"who": "you", "text": word, "time": datetime.now().strftime("%H:%M")}
                 )
+                save_chat_to_browser()
         if space_clicked:
             with ctx.video_processor.lock:
                 ctx.video_processor.current_word += " "
@@ -452,6 +480,7 @@ with col_reply:
         st.session_state.chat_log.append(
             {"who": "friend", "text": typed_reply.strip(), "time": datetime.now().strftime("%H:%M")}
         )
+        save_chat_to_browser()
 
     st.markdown(
         "<p class='status-muted' style='margin:10px 0 4px;'>— or speak it —</p>",
@@ -495,6 +524,7 @@ with col_reply:
                 st.session_state.chat_log.append(
                     {"who": "friend", "text": heard, "time": datetime.now().strftime("%H:%M")}
                 )
+                save_chat_to_browser()
 
     st.markdown("###### Now Translating")
     if st.session_state.received_text:
@@ -526,7 +556,12 @@ with col_reply:
 # --------------------------------------------------------------------------
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("<div class='panel'>", unsafe_allow_html=True)
-st.markdown("##### Conversation")
+chead1, chead2 = st.columns([4, 1])
+chead1.markdown("##### Conversation")
+if chead2.button("Clear History", use_container_width=True):
+    st.session_state.chat_log = []
+    save_chat_to_browser()
+    st.rerun()
 
 if st.session_state.chat_log:
     bubbles = ""
