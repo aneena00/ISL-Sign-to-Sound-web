@@ -410,6 +410,40 @@ st.markdown("<div class='hero-title'>Sign2Sound</div>", unsafe_allow_html=True)
 st.markdown("<p class='hero-sub'>A live bridge between ISL signs and spoken word.</p>", unsafe_allow_html=True)
 st.markdown("<div class='bridge-line'></div>", unsafe_allow_html=True)
 
+with st.expander("📖 How to use Sign2Sound"):
+    st.markdown(
+        """
+**1. Start signing**
+- Click **Start** on the camera box on the left. Your browser will ask for camera permission — allow it.
+- Hold a hand sign steady in view. The status line below the camera shows what's happening: *Searching for hands → Buffering... → Detecting... → Confirmed: X*.
+- Once a letter is confirmed, it's added to the word shown in the yellow pill.
+
+**2. Build words and sentences**
+- **Speak** — speaks your current word out loud and logs it to the conversation, then clears it so you can start the next word.
+- **␣ Space** — adds a space, so you can sign multiple words into one sentence before speaking it.
+- **⌫ Back** — removes the last letter, if the camera misread a sign.
+- **Clear** — wipes the current word without speaking it.
+
+**3. Check your mood reading**
+- The "Mood" line below the word shows what the app thinks your expression is.
+- Open **"Mood debug scores"** to see the raw numbers behind that — useful if a mood seems wrong.
+
+**4. Reply back**
+- On the right, either **type** a reply and click **Send Reply**, or click the **microphone icon**, speak, and click it again to stop — it'll transcribe what you said automatically.
+- Either way, the reply is spoken out loud and shown as a row of sign images under "Now Translating".
+
+**5. Review your conversation**
+- Everything you've signed and everything typed/spoken back appears in the **Conversation** panel at the bottom, newest at the bottom.
+- This is saved in your browser, so it's still there if you close and reopen the page later.
+- Use **Clear History** to wipe it.
+
+**Tips for best results**
+- Good, even lighting on your hands and face helps both sign and mood detection.
+- Keep your hand(s) fully in frame, not too close to the camera.
+- Hold a sign steady for about a second — it needs a few frames in a row to confirm it, not just a quick flash.
+"""
+    )
+
 col_cam, col_reply = st.columns(2)
 
 # --------------------------------------------------------------------------
